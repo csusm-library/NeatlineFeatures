@@ -148,23 +148,42 @@ if (typeof OpenLayers === "object") {
     });
 }
 
+
 /*
  * StamenMapType for Google Maps API V3
  * <https://developers.google.com/maps/documentation/javascript/>
  */
 if (typeof google === "object" && typeof google.maps === "object") {
+
+    // Extending Google class based on a post by Bogart Salzberg of Portland Webworks,
+    // http://www.portlandwebworks.com/blog/extending-googlemapsmap-object
+    google.maps.ImageMapType = (function(_constructor){
+        var f = function() {
+            if (!arguments.length) {
+                return;
+            }
+            _constructor.apply(this, arguments);
+        }
+        f.prototype = _constructor.prototype;
+        return f;
+    })(google.maps.ImageMapType);
+
+
     google.maps.StamenMapType = function(name) {
-        var provider = getProvider(name);
+        var provider = getProvider(name),
+            subdomains = provider.subdomains;
         return google.maps.ImageMapType.call(this, {
             "getTileUrl": function(coord, zoom) {
-                var index = (zoom + coord.x + coord.y) % SUBDOMAINS.length;
-                return [
-                    provider.url
-                        .replace("{S}", SUBDOMAINS[index])
-                        .replace("{Z}", zoom)
-                        .replace("{X}", coord.x)
-                        .replace("{Y}", coord.y)
-                ];
+                var numTiles = 1 << zoom,
+                    wx = coord.x % numTiles,
+                    x = (wx < 0) ? wx + numTiles : wx,
+                    y = coord.y,
+                    index = (zoom + x + y) % subdomains.length;
+                return provider.url
+                    .replace("{S}", subdomains[index])
+                    .replace("{Z}", zoom)
+                    .replace("{X}", x)
+                    .replace("{Y}", y);
             },
             "tileSize": new google.maps.Size(256, 256),
             "name":     name,
@@ -172,8 +191,10 @@ if (typeof google === "object" && typeof google.maps === "object") {
             "maxZoom":  provider.maxZoom
         });
     };
+
     // FIXME: is there a better way to extend classes in Google land?
-    google.maps.StamenMapType.prototype = new google.maps.ImageMapType("_");
+    // Possibly fixed, see above ^^^ | SC
+    google.maps.StamenMapType.prototype = new google.maps.ImageMapType;
 }
 
 })(typeof exports === "undefined" ? this : exports);
